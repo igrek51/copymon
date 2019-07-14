@@ -1,11 +1,19 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-from __future__ import division
-from glue import *
+#!/usr/bin/env python3
 import time
 import threading
 import select
 import signal
+import sys
+import os
+import subprocess
+from datetime import datetime
+
+from cliglue import CliBuilder, argument, arguments, flag, parameter, subcommand
+from cliglue.utils.shell import shell_output
+from cliglue.utils.output import info
+from cliglue.utils.strings import nonempty_lines
+from cliglue.utils.regex import regex_filter_list, regex_replace_list
+from cliglue.utils.time import time2str
 
 
 def get_mem_dirty_writeback():
@@ -96,7 +104,7 @@ def seconds_to_human(seconds):
     return strout
 
 def current_time():
-    now = datetime.datetime.now()
+    now = datetime.now()
     return time2str(now, '%H:%M:%S')
 
 CHAR_BOLD = '\033[1m'
@@ -125,10 +133,10 @@ class MemInfoEntry(object):
     def remaining_kb(self):
         return self.dirty_kb + self.writeback_kb
 
-# ----- Actions -----
-def action_monitor_meminfo(ap):
+
+def action_monitor_meminfo(sync):
     background_thread = None
-    if ap.is_flag_set('sync'):
+    if sync:
         background_thread = run_sync_background()
 
     mem_sizes_buffer = []
@@ -136,7 +144,7 @@ def action_monitor_meminfo(ap):
     try:
         while True:
             # rerun sync
-            if ap.is_flag_set('sync') and background_thread and not background_thread.is_alive():
+            if sync and background_thread and not background_thread.is_alive():
                 info('running sync in background...')
                 background_thread.stop()
                 background_thread = run_sync_background()
@@ -211,10 +219,11 @@ def action_monitor_meminfo(ap):
 
 
 def main():
-    ap = ArgsProcessor(app_name='Dirty-Writeback memory stream monitor', version='1.1.0', default_action=action_monitor_meminfo,
-        description='Type [s], [Enter] to force sync when monitoring memory')
-    ap.add_flag('sync', help='run sync continuously')
-    ap.process()
+	CliBuilder('dirty-monitor', version='1.2.0',
+		       help='Dirty-Writeback memory stream monitor,\nType [s], [Enter] to force sync when monitoring memory',
+		       run=action_monitor_meminfo).has(
+        flag('--sync', help='run sync continuously'),
+    ).run()
 
 
 if __name__ == '__main__':
