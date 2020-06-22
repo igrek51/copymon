@@ -3,6 +3,8 @@
 dirty-monitor is a Dirty-Writeback memory stream monitor. It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
 It watches and analyzes the system file `/proc/meminfo`.
 
+![dirty-monitor in action](img/dirty_monitor.gif)
+
 # Usage
 ```bash
 $ ./dirty_monitor.py
