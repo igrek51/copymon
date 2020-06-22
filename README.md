@@ -1,9 +1,65 @@
 # dirty-monitor
 
-dirty-monitor is a Dirty-Writeback memory stream monitor. It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
+> 99% is pleasing only for the first hour.
+
+dirty-monitor shows the most probable estimated time of copying files.
+
+dirty-monitor is a Dirty-Writeback Memory stream monitor. It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
 It watches and analyzes the system file `/proc/meminfo`.
 
 ![dirty-monitor in action](img/dirty_monitor.gif)
+
+It observes `/proc/meminfo` which allows to determine ETA more precisely:
+```
+MemTotal:       16343812 kB
+MemFree:         6123312 kB
+MemAvailable:   13108588 kB
+Buffers:         3053664 kB
+Cached:          5056684 kB
+SwapCached:            0 kB
+Active:          5100292 kB
+Inactive:        4756604 kB
+Active(anon):    1743648 kB
+Inactive(anon):   926468 kB
+Active(file):    3356644 kB
+Inactive(file):  3830136 kB
+Unevictable:          48 kB
+Mlocked:              48 kB
+SwapTotal:       1998164 kB
+SwapFree:        1998164 kB
+Dirty:               952 kB
+Writeback:             0 kB
+AnonPages:       1666548 kB
+Mapped:          1123908 kB
+Shmem:            928232 kB
+Slab:             200200 kB
+SReclaimable:     111172 kB
+SUnreclaim:        89028 kB
+KernelStack:        9840 kB
+PageTables:        26592 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    10170068 kB
+Committed_AS:    7271044 kB
+VmallocTotal:   34359738367 kB
+VmallocUsed:           0 kB
+VmallocChunk:          0 kB
+Percpu:             1584 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:    606208 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:               0 kB
+DirectMap4k:      340204 kB
+DirectMap2M:    13207552 kB
+DirectMap1G:     3145728 kB
+```
 
 # Usage
 ```bash
