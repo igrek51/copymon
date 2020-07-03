@@ -1,13 +1,16 @@
-# dirty-monitor
+# copymon
+
+[![GitHub version](https://badge.fury.io/gh/igrek51%2Fcopymon.svg)](https://github.com/igrek51/copymon)
+[![PyPI version](https://badge.fury.io/py/copymon.svg)](https://pypi.org/project/copymon)
 
 > 99% is pleasing only for the first hour.
 
-dirty-monitor shows the most probable estimated time of copying files.
+Copymon is a monitor of memory buffers for better estimation of copying time.
 
-dirty-monitor is a Dirty-Writeback Memory stream monitor. It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
-It watches and analyzes the system file `/proc/meminfo`.
+It shows the most probable estimated time of copying files by monitoring Dirty-Writeback Memory stream.
+It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
 
-![dirty-monitor in action](img/dirty_monitor.gif)
+![copymon in action](https://github.com/igrek51/copymon/blob/master/docs/img/dirty_monitor.gif?raw=true)  
 
 It observes `/proc/meminfo` which allows to determine ETA more precisely:
 ```
@@ -61,9 +64,18 @@ DirectMap2M:    13207552 kB
 DirectMap1G:     3145728 kB
 ```
 
+# Installation
+```shell
+pip3 install copymon
+```
+
+Requirements:
+
+* Python 3.6 (or newer) with pip
+
 # Usage
 ```bash
-$ ./dirty_monitor.py
+$ copymon
 [13:33:08] Remaining:  152.71 MB, Speed:    -8.96 MB/s, AVG speed:    -6.95 MB/s, ETA:       21 s
 [13:33:09] Remaining:  143.72 MB, Speed:    -8.92 MB/s, AVG speed:    -7.31 MB/s, ETA:       19 s
 [13:33:10] Remaining:  136.72 MB, Speed:    -6.93 MB/s, AVG speed:    -7.72 MB/s, ETA:       17 s

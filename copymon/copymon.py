@@ -1,39 +1,42 @@
-#!/usr/bin/env python3
-import time
-import threading
-import select
-import signal
-import sys
 import os
+import signal
 import subprocess
+import sys
+import threading
+import time
 from datetime import datetime
+from typing import Tuple, List, Optional
 
-from cliglue import CliBuilder, argument, arguments, flag, parameter, subcommand
-from cliglue.utils.shell import shell_output
-from cliglue.utils.output import info
-from cliglue.utils.strings import nonempty_lines
-from cliglue.utils.regex import regex_filter_list, regex_replace_list
-from cliglue.utils.time import time2str
+import select
+from dataclasses import dataclass
+from nuclear.sublog import log
+from nuclear.utils.regex import regex_filter_list, regex_replace_list
+from nuclear.utils.shell import shell_output
+from nuclear.utils.strings import nonempty_lines
+from nuclear.utils.time import time2str
 
 
-def get_mem_dirty_writeback():
+def get_mem_dirty_writeback() -> Tuple[int, int]:
     meminfo = nonempty_lines(shell_output('cat /proc/meminfo'))
     dirty = regex_filter_list(meminfo, r'Dirty: +([0-9]+) kB')
     dirty = regex_replace_list(dirty, r'Dirty: +([0-9]+) kB', '\\1')
     writeback = regex_filter_list(meminfo, r'Writeback: +([0-9]+) kB')
     writeback = regex_replace_list(writeback, r'Writeback: +([0-9]+) kB', '\\1')
-    return (int(dirty[0]), int(writeback[0]))
+    return int(dirty[0]), int(writeback[0])
 
-def run_sync_background():
-    background_thread = BackgroundExecuteThread('nohup sync > /dev/null 2>&1 &')
-    background_thread.start()
-    return background_thread
+
+def kill_process(proc):
+    if proc is not None:
+        if proc.poll() is None:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            proc.terminate()
+
 
 class BackgroundExecuteThread(threading.Thread):
-    def __init__(self, cmd):
+    def __init__(self, cmd: str):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.__cmd = cmd
+        self.__cmd: str = cmd
         self.__proc = None
 
     def run(self):
@@ -43,35 +46,51 @@ class BackgroundExecuteThread(threading.Thread):
             self.__proc = None
 
     def stop(self):
-        self.__proc = self.__killProcess(self.__proc)
+        kill_process(self.__proc)
+        self.__proc = None
 
-    def __killProcess(self, proc):
-        if proc is not None:
-            if proc.poll() is None:
-                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                proc.terminate()
 
-def kb_to_human(kbs):
+def run_sync_background() -> BackgroundExecuteThread:
+    background_thread = BackgroundExecuteThread('nohup sync > /dev/null 2>&1 &')
+    background_thread.start()
+    return background_thread
+
+
+@dataclass
+class MemDataPoint(object):
+    timestamp: float  # [s]
+    dirty_kb: int  # [kB]
+    writeback_kb: int  # [kB]
+
+    @property
+    def remaining_kb(self) -> int:
+        return self.dirty_kb + self.writeback_kb
+
+
+def kb_to_human(kbs: int) -> str:
     if kbs < 0:
         return '-' + kb_to_human(-kbs)
     if kbs < 1024:
-        return '%d kB' % kbs
-    mbs = kbs / 1024.0
+        return f'{kbs} kB'
+    mbs: float = kbs / 1024.0
     if mbs < 1024:
-        return '%.2f MB' % mbs
+        return f'{mbs:.2f} MB'
     gbs = mbs / 1024.0
-    return '%.2f GB' % gbs
+    return f'{gbs:.2f} GB'
 
-def kb_to_human_just(kbs):
+
+def kb_to_human_just(kbs: int) -> str:
     return kb_to_human(kbs).rjust(10)
 
-def kb_to_speed_human_just(kbs):
-    kb_human = kb_to_human(kbs) + '/s'
-    if kbs > 0:
+
+def kb_to_speed_human_just(kbps: float) -> str:
+    kb_human = kb_to_human(int(kbps)) + '/s'
+    if kbps > 0:
         kb_human = '+' + kb_human
     return kb_human.rjust(13)
 
-def calc_avg_speed(mem_infos):
+
+def calc_avg_speed(mem_infos: List[MemDataPoint]) -> float:
     if len(mem_infos) < 2:
         return 0
     first = mem_infos[0]
@@ -80,7 +99,8 @@ def calc_avg_speed(mem_infos):
     time_delta = last.timestamp - first.timestamp
     return remaining_delta / time_delta
 
-def calc_temporary_speed(mem_infos):
+
+def calc_temporary_speed(mem_infos: List[MemDataPoint]) -> float:
     if len(mem_infos) < 2:
         return 0
     last = mem_infos[-1]
@@ -89,23 +109,26 @@ def calc_temporary_speed(mem_infos):
     time_delta = last.timestamp - prelast.timestamp
     return remaining_delta / time_delta
 
-def calc_eta(remaining_kb, speed):
+
+def calc_eta(remaining_kb: int, speed: float) -> Optional[float]:
     if speed >= 0:
         return None
     return remaining_kb / -speed
 
-def seconds_to_human(seconds):
+
+def seconds_to_human(seconds: Optional[float]) -> str:
     if not seconds:
         return 'Infinity'
-    strout = '%d s' % (int(seconds) % 60)
-    minutes = int(seconds) // 60
+    strout: str = f'{int(seconds) % 60}s'
+    minutes: int = int(seconds) // 60
     if minutes > 0:
-        strout = '%d m %s' % (minutes, strout)
+        strout = f'{minutes}m {strout}'
     return strout
 
-def current_time():
-    now = datetime.now()
-    return time2str(now, '%H:%M:%S')
+
+def current_time() -> str:
+    return time2str(datetime.now(), '%H:%M:%S')
+
 
 CHAR_BOLD = '\033[1m'
 CHAR_RESET = '\033[0m'
@@ -114,60 +137,49 @@ CHAR_BLUE = '\033[34m'
 CHAR_YELLOW = '\033[33m'
 CHAR_RED = '\033[31m'
 
-def input_or_timeout(timeout):
+
+def input_or_timeout(timeout: int) -> Optional[str]:
     i, o, e = select.select([sys.stdin], [], [], timeout)
-    if (i):
+    if i:
         return sys.stdin.readline().strip()
     else:
         return None
 
 
-class MemInfoEntry(object):
-    """timestamp [s], dirty [kB], writeback [kB], remaining = sum [kB]"""
-    def __init__(self, timestamp, dirty_kb, writeback_kb):
-        self.timestamp = timestamp
-        self.dirty_kb = dirty_kb
-        self.writeback_kb = writeback_kb
-
-    @property
-    def remaining_kb(self):
-        return self.dirty_kb + self.writeback_kb
-
-
-def action_monitor_meminfo(sync):
-    background_thread = None
+def action_monitor_meminfo(sync: bool):
+    background_thread: Optional[BackgroundExecuteThread] = None
     if sync:
         background_thread = run_sync_background()
 
-    mem_sizes_buffer = []
+    mem_sizes_buffer: List[MemDataPoint] = []
 
     try:
         while True:
             # rerun sync
             if sync and background_thread and not background_thread.is_alive():
-                info('running sync in background...')
+                log.info('running sync in background...')
                 background_thread.stop()
                 background_thread = run_sync_background()
 
-            timestamp = time.time()
+            timestamp: float = time.time()
             dirty_kb, writeback_kb = get_mem_dirty_writeback()
-            remaining_kb = dirty_kb + writeback_kb
-            
-            mem_sizes_buffer.append(MemInfoEntry(timestamp, dirty_kb, writeback_kb))
+            remaining_kb: int = dirty_kb + writeback_kb
+
+            mem_sizes_buffer.append(MemDataPoint(timestamp, dirty_kb, writeback_kb))
             # max buffer size
             if len(mem_sizes_buffer) > 10:
                 mem_sizes_buffer.pop(0)
 
-            speed_temp = calc_temporary_speed(mem_sizes_buffer)
-            speed_avg = calc_avg_speed(mem_sizes_buffer)
-            eta_s = calc_eta(remaining_kb, speed_avg)
+            speed_temp: float = calc_temporary_speed(mem_sizes_buffer)
+            speed_avg: float = calc_avg_speed(mem_sizes_buffer)
+            eta_s: float = calc_eta(remaining_kb, speed_avg)
 
             # output values
             print_timestamp = CHAR_BOLD + current_time() + CHAR_RESET
             print_remaining = CHAR_BOLD + kb_to_human_just(remaining_kb) + CHAR_RESET
             print_temporary_speed = CHAR_BOLD + kb_to_speed_human_just(speed_temp) + CHAR_RESET
             print_avg_speed = CHAR_BOLD + kb_to_speed_human_just(speed_avg) + CHAR_RESET
-            print_eta = CHAR_BOLD + seconds_to_human(eta_s).rjust(10) + CHAR_RESET
+            print_eta = CHAR_BOLD + seconds_to_human(eta_s).rjust(8) + CHAR_RESET
 
             # output formatting
             if remaining_kb < 100:
@@ -194,37 +206,27 @@ def action_monitor_meminfo(sync):
             elif eta_s > 600:
                 print_eta = CHAR_RED + print_eta
 
-            print('[%s] Remaining: %s, Speed: %s, AVG speed: %s, ETA: %s' % (print_timestamp, print_remaining, print_temporary_speed, print_avg_speed, print_eta))
+            print(f'[{print_timestamp}] Remaining:{print_remaining}, '
+                  f'Speed:{print_temporary_speed}, '
+                  f'AVG:{print_avg_speed}, '
+                  f'ETA: {print_eta}')
 
             # delay before next loop
             inp = input_or_timeout(1)
             # sync command
             if inp == 's':
                 if background_thread and background_thread.is_alive():
-                    info('already syncing.')
+                    log.info('already syncing.')
                 else:
-                    info('running sync in background...')
+                    log.info('running sync in background...')
                     background_thread = run_sync_background()
+            elif inp == 'q':
+                return
 
     except KeyboardInterrupt:
         # Ctrl + C handling without printing stack trace
-        print  # new line
-    except:
-        # closing threads before exit caused by critical error
-        raise
+        print()  # new line)
     finally:
         # cleanup_thread
         if background_thread is not None:
             background_thread.stop()
-
-
-def main():
-	CliBuilder('dirty-monitor', version='1.2.0',
-		       help='Dirty-Writeback memory stream monitor,\nType [s], [Enter] to force sync when monitoring memory',
-		       run=action_monitor_meminfo).has(
-        flag('--sync', help='run sync continuously'),
-    ).run()
-
-
-if __name__ == '__main__':
-    main()
