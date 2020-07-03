@@ -10,6 +10,7 @@ Copymon is a monitor of memory buffers for better estimation of copying time.
 It shows the most probable estimated time of copying files by monitoring Dirty-Writeback Memory stream.
 It estimates the time until all the buffers are REALLY written to the disk - as opposed to most of the file managers which are showing the estimated time to writing to a buffer only.
 
+Enter `copymon` to start monitoring:  
 ![copymon in action](https://github.com/igrek51/copymon/blob/master/docs/img/dirty_monitor.gif?raw=true)  
 
 It observes `/proc/meminfo` which allows to determine ETA more precisely:
