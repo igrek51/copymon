@@ -65,7 +65,7 @@ DirectMap2M:    13207552 kB
 DirectMap1G:     3145728 kB
 ```
 
-# Installation
+## Installation
 ```shell
 pip3 install copymon
 ```
@@ -74,7 +74,7 @@ Requirements:
 
 * Python 3.6 (or newer) with pip
 
-# Usage
+## Usage
 ```bash
 $ copymon
 [13:33:08] Remaining:  152.71 MB, Speed:    -8.96 MB/s, AVG speed:    -6.95 MB/s, ETA:       21 s
